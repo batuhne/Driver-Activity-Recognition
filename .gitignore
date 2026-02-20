@@ -1,0 +1,15 @@
+data/
+*.npy
+*.pth
+venv/
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+results/
+*.egg-info/
+dist/
+build/
+.env
+wandb/
+runs/
+.claude/
