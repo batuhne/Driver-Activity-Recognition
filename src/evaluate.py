@@ -44,7 +44,8 @@ def compute_all_metrics(y_true, y_pred, idx_to_label):
 
     label_names = [idx_to_label[i] for i in range(num_classes)]
     report = classification_report(
-        y_true, y_pred, target_names=label_names, zero_division=0
+        y_true, y_pred, labels=range(num_classes),
+        target_names=label_names, zero_division=0
     )
 
     return {
