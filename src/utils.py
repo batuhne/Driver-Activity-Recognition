@@ -67,7 +67,9 @@ def get_activity_labels(annotation_path):
 
 
 def compute_class_weights_from_labels(labels, num_classes):
-    """Compute balanced class weights using sklearn.
+    """Compute balanced class weights.
+
+    Handles cases where some classes have no samples in the split.
 
     Args:
         labels: array of integer class labels
@@ -76,8 +78,17 @@ def compute_class_weights_from_labels(labels, num_classes):
     Returns:
         torch.FloatTensor of shape (num_classes,) with class weights
     """
-    classes = np.arange(num_classes)
-    weights = compute_class_weight("balanced", classes=classes, y=np.array(labels))
+    labels = np.array(labels)
+    present_classes = np.unique(labels)
+    weights = np.ones(num_classes, dtype=np.float32)
+
+    if len(present_classes) > 0:
+        present_weights = compute_class_weight(
+            "balanced", classes=present_classes, y=labels
+        )
+        for cls, w in zip(present_classes, present_weights):
+            weights[cls] = w
+
     return torch.FloatTensor(weights)
 
 
