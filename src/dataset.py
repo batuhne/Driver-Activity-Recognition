@@ -31,6 +31,11 @@ def mixup_batch(features, labels, alpha, num_classes):
         x_mix: (batch, seq_len, feat_dim) mixed features
         y_mix: (batch, num_classes) soft target labels
     """
+    if alpha <= 0:
+        # Mixup disabled — return one-hot hard targets
+        y_onehot = F.one_hot(labels, num_classes).float()
+        return features, y_onehot
+
     batch_size = features.size(0)
 
     # Sample lambda from Beta distribution
@@ -129,8 +134,10 @@ class DriveActVideoDataset(Dataset):
         # Frame sampling stride: pick every Nth frame to simulate lower fps
         self.frame_stride = self.original_fps // self.sample_fps  # 30/5 = 6
 
-        mean = config["processing"]["imagenet_mean"]
-        std = config["processing"]["imagenet_std"]
+        ir_mean = config["processing"]["ir_mean"]
+        ir_std = config["processing"]["ir_std"]
+        mean = [ir_mean, ir_mean, ir_mean]
+        std = [ir_std, ir_std, ir_std]
 
         if is_train:
             self.transform = T.Compose([
@@ -265,13 +272,14 @@ class DriveActFeatureDataset(Dataset):
         return torch.from_numpy(features), label
 
 
-def get_dataloaders(config, splits=None, feature_based=True):
+def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
     """Create DataLoaders with WeightedRandomSampler for class imbalance.
 
     Args:
         config: loaded config dict
         splits: output of parse_annotations (if feature_based=False)
         feature_based: if True, use DriveActFeatureDataset; else DriveActVideoDataset
+        num_classes: total number of classes (avoids fragile max(labels)+1)
 
     Returns:
         dict with 'train', 'val', 'test' DataLoaders
@@ -293,8 +301,8 @@ def get_dataloaders(config, splits=None, feature_based=True):
             if split_name == "train":
                 # Weighted sampling for class imbalance
                 labels = [s["label"] for s in dataset.samples]
-                num_classes = max(labels) + 1
-                weights = compute_class_weights_from_labels(labels, num_classes)
+                nc = num_classes if num_classes is not None else max(labels) + 1
+                weights = compute_class_weights_from_labels(labels, nc)
                 sample_weights = [weights[l] for l in labels]
                 sampler = WeightedRandomSampler(
                     sample_weights, len(sample_weights), replacement=True
@@ -322,8 +330,8 @@ def get_dataloaders(config, splits=None, feature_based=True):
 
             if is_train:
                 labels = [s["label_idx"] for s in splits[split_name]]
-                num_classes = max(labels) + 1
-                weights = compute_class_weights_from_labels(labels, num_classes)
+                nc = num_classes if num_classes is not None else max(labels) + 1
+                weights = compute_class_weights_from_labels(labels, nc)
                 sample_weights = [weights[l] for l in labels]
                 sampler = WeightedRandomSampler(
                     sample_weights, len(sample_weights), replacement=True

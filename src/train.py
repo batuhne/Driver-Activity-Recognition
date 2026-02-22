@@ -37,12 +37,18 @@ class FocalLoss(nn.Module):
             logits: (batch, num_classes) raw predictions
             targets: (batch,) integer labels OR (batch, num_classes) soft targets
         """
-        if targets.dim() == 1:
-            # Hard labels — convert to soft targets with optional smoothing
-            num_classes = logits.size(1)
-            targets = F.one_hot(targets, num_classes).float()
-            if self.label_smoothing > 0:
-                targets = targets * (1 - self.label_smoothing) + self.label_smoothing / num_classes
+        if targets.dim() == 2:
+            # Soft targets (e.g. from mixup) — focal weighting is not
+            # semantically meaningful, fall back to plain soft CE
+            log_probs = F.log_softmax(logits, dim=1)
+            loss = -(targets * log_probs).sum(dim=1).mean()
+            return loss
+
+        # Hard labels — apply focal loss with optional label smoothing
+        num_classes = logits.size(1)
+        one_hot = F.one_hot(targets, num_classes).float()
+        if self.label_smoothing > 0:
+            one_hot = one_hot * (1 - self.label_smoothing) + self.label_smoothing / num_classes
 
         log_probs = F.log_softmax(logits, dim=1)
         probs = log_probs.exp()
@@ -51,7 +57,7 @@ class FocalLoss(nn.Module):
         focal_weight = (1 - probs) ** self.gamma
 
         # Weighted cross-entropy
-        loss = -(focal_weight * targets * log_probs).sum(dim=1).mean()
+        loss = -(focal_weight * one_hot * log_probs).sum(dim=1).mean()
         return loss
 
 
@@ -69,7 +75,7 @@ def train(config):
     logger.info(f"Number of classes: {num_classes}")
 
     # Create dataloaders from pre-extracted features
-    loaders = get_dataloaders(config, feature_based=True)
+    loaders = get_dataloaders(config, feature_based=True, num_classes=num_classes)
     logger.info(f"Train: {len(loaders['train'].dataset)} samples")
     logger.info(f"Val: {len(loaders['val'].dataset)} samples")
     logger.info(f"Test: {len(loaders['test'].dataset)} samples")
@@ -174,7 +180,11 @@ def train(config):
 
             train_loss += loss.item() * features.size(0)
             preds = logits.argmax(dim=1)
-            train_correct += (preds == labels).sum().item()
+            if mixup_alpha > 0:
+                # Compare against dominant class in soft targets
+                train_correct += (preds == soft_targets.argmax(dim=1)).sum().item()
+            else:
+                train_correct += (preds == labels).sum().item()
             train_total += features.size(0)
 
         train_loss /= train_total

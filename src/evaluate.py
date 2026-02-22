@@ -25,8 +25,9 @@ def mean_per_class_accuracy(y_true, y_pred, num_classes):
             acc = (np.array(y_pred)[mask] == c).mean()
             per_class_acc.append(acc)
         else:
-            per_class_acc.append(0.0)
-    return np.mean(per_class_acc), per_class_acc
+            per_class_acc.append(np.nan)
+    # Average only over classes with support (ignore NaN)
+    return float(np.nanmean(per_class_acc)), per_class_acc
 
 
 def compute_all_metrics(y_true, y_pred, idx_to_label):
@@ -122,25 +123,38 @@ def plot_training_curves(train_losses, val_losses, train_accs, val_accs,
 
 
 def plot_per_class_metrics(per_class_acc, idx_to_label, save_path=None):
-    """Plot per-class accuracy as a horizontal bar chart."""
+    """Plot per-class accuracy as a horizontal bar chart.
+
+    Classes with NaN accuracy (zero support) are excluded from the plot.
+    """
     num_classes = len(idx_to_label)
     label_names = [idx_to_label[i] for i in range(num_classes)]
 
-    # Sort by accuracy
-    sorted_indices = np.argsort(per_class_acc)
-    sorted_names = [label_names[i] for i in sorted_indices]
-    sorted_acc = [per_class_acc[i] for i in sorted_indices]
+    # Filter out NaN classes (no support in this split)
+    valid = [(label_names[i], per_class_acc[i]) for i in range(num_classes)
+             if not np.isnan(per_class_acc[i])]
+    if not valid:
+        return None
+    filtered_names, filtered_acc = zip(*valid)
+    filtered_acc = list(filtered_acc)
 
-    fig, ax = plt.subplots(figsize=(10, max(8, num_classes * 0.3)))
+    # Sort by accuracy
+    sorted_pairs = sorted(zip(filtered_names, filtered_acc), key=lambda x: x[1])
+    sorted_names = [p[0] for p in sorted_pairs]
+    sorted_acc = [p[1] for p in sorted_pairs]
+    n = len(sorted_names)
+
+    fig, ax = plt.subplots(figsize=(10, max(8, n * 0.3)))
     colors = plt.cm.RdYlGn(np.array(sorted_acc))
-    ax.barh(range(num_classes), sorted_acc, color=colors)
-    ax.set_yticks(range(num_classes))
+    ax.barh(range(n), sorted_acc, color=colors)
+    ax.set_yticks(range(n))
     ax.set_yticklabels(sorted_names, fontsize=8)
     ax.set_xlabel("Accuracy")
     ax.set_title("Per-Class Accuracy")
     ax.set_xlim(0, 1)
-    ax.axvline(x=np.mean(per_class_acc), color="red", linestyle="--",
-               label=f"Mean: {np.mean(per_class_acc):.3f}")
+    mean_acc = np.nanmean(filtered_acc)
+    ax.axvline(x=mean_acc, color="red", linestyle="--",
+               label=f"Mean: {mean_acc:.3f}")
     ax.legend()
     ax.grid(True, alpha=0.3, axis="x")
     plt.tight_layout()

@@ -17,7 +17,7 @@ model:
   lstm_layers: 2
   lstm_dropout: 0.5                  # Increased from 0.3 for regularization
   fc_dropout: 0.5
-  num_classes: 34                   # Will be overridden by actual data count
+  num_classes: 39                   # Will be overridden by actual data count
   freeze_cnn: true
   use_layernorm: true               # LayerNorm on LSTM input
   bidirectional: true               # Bidirectional LSTM
@@ -30,7 +30,7 @@ training:
   epochs: 80                        # Increased from 50
   early_stop_patience: 15           # Increased from 10
   label_smoothing: 0.1
-  loss_type: "focal"                # "ce" | "focal"
+  loss_type: "ce"                   # "ce" | "focal"
   focal_gamma: 2.0                  # Focal loss focusing parameter
   mixup_alpha: 0.2                  # Mixup interpolation strength (0 = disabled)
   noise_std: 0.1                    # Gaussian noise on input features
@@ -45,12 +45,12 @@ processing:
   frame_size: 224
   original_fps: 30
   sample_fps: 5                     # Temporal subsampling rate
-  imagenet_mean: [0.485, 0.456, 0.406]
-  imagenet_std: [0.229, 0.224, 0.225]
+  ir_mean: 0.5                      # Placeholder — compute from data via compute_dataset_statistics()
+  ir_std: 0.25                      # Placeholder — compute from data via compute_dataset_statistics()
 
 features:
   save_dir: "features"              # Relative to data.root
-  dtype: "float16"                  # Save as float16 to reduce disk usage
+  dtype: "float32"                  # float32 for better numerical precision
 
 output:
   checkpoint_dir: "results/checkpoints"

@@ -41,6 +41,11 @@ def extract_features(config):
     cnn = CNNFeatureExtractor().to(device)
     cnn.eval()
 
+    # Log IR normalization values being used
+    ir_mean = config["processing"]["ir_mean"]
+    ir_std = config["processing"]["ir_std"]
+    logger.info(f"IR normalization: mean={ir_mean}, std={ir_std}")
+
     data_root = config["data"]["root"]
     feature_dir = os.path.join(data_root, config["features"]["save_dir"])
     save_dtype = np.float16 if config["features"]["dtype"] == "float16" else np.float32

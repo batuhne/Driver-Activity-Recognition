@@ -9,6 +9,8 @@ import yaml
 import numpy as np
 import torch
 import pandas as pd
+import cv2
+from tqdm import tqdm
 from sklearn.utils.class_weight import compute_class_weight
 
 
@@ -124,6 +126,57 @@ def override_config_paths(config, colab_root="/content/drive/MyDrive/DriveAndAct
     """
     config["data"]["root"] = colab_root
     return config
+
+
+def compute_dataset_statistics(video_paths, num_samples=50000, frame_size=224):
+    """Compute per-channel mean and std from IR training videos.
+
+    Samples random frames from the provided video paths, converts to
+    grayscale float [0, 1], and computes global mean/std.
+
+    Args:
+        video_paths: list of video file paths to sample from
+        num_samples: total number of frames to sample
+        frame_size: resize frames to this size before computing stats
+
+    Returns:
+        mean: float, grayscale mean in [0, 1]
+        std: float, grayscale std in [0, 1]
+    """
+    samples_per_video = max(1, num_samples // len(video_paths))
+    pixel_sum = 0.0
+    pixel_sq_sum = 0.0
+    count = 0
+
+    for vpath in tqdm(video_paths, desc="Computing IR statistics"):
+        cap = cv2.VideoCapture(vpath)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total_frames <= 0:
+            cap.release()
+            continue
+
+        indices = np.random.choice(total_frames, size=min(samples_per_video, total_frames), replace=False)
+        for idx in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
+            ret, frame = cap.read()
+            if not ret:
+                continue
+            # Convert to grayscale if needed
+            if len(frame.shape) == 3:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            frame = cv2.resize(frame, (frame_size, frame_size))
+            frame = frame.astype(np.float64) / 255.0
+            pixel_sum += frame.sum()
+            pixel_sq_sum += (frame ** 2).sum()
+            count += frame.size
+        cap.release()
+
+    if count == 0:
+        raise RuntimeError("No frames could be read from the provided videos.")
+
+    mean = pixel_sum / count
+    std = np.sqrt(pixel_sq_sum / count - mean ** 2)
+    return float(mean), float(std)
 
 
 def is_colab():
