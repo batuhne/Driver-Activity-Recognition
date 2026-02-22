@@ -9,13 +9,50 @@ import time
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from src.utils import load_config, set_seed, setup_logging
-from src.dataset import parse_annotations, get_dataloaders, DriveActFeatureDataset
+from src.dataset import parse_annotations, get_dataloaders, DriveActFeatureDataset, mixup_batch
 from src.models import ActivityLSTM
 from src.evaluate import evaluate_model, compute_all_metrics
+
+
+class FocalLoss(nn.Module):
+    """Focal Loss for addressing class imbalance.
+
+    FL = -(1 - p_t)^gamma * log(p_t)
+    Supports both hard labels and soft targets (from mixup).
+    """
+
+    def __init__(self, gamma=2.0, label_smoothing=0.0):
+        super().__init__()
+        self.gamma = gamma
+        self.label_smoothing = label_smoothing
+
+    def forward(self, logits, targets):
+        """
+        Args:
+            logits: (batch, num_classes) raw predictions
+            targets: (batch,) integer labels OR (batch, num_classes) soft targets
+        """
+        if targets.dim() == 1:
+            # Hard labels — convert to soft targets with optional smoothing
+            num_classes = logits.size(1)
+            targets = F.one_hot(targets, num_classes).float()
+            if self.label_smoothing > 0:
+                targets = targets * (1 - self.label_smoothing) + self.label_smoothing / num_classes
+
+        log_probs = F.log_softmax(logits, dim=1)
+        probs = log_probs.exp()
+
+        # Focal weight: (1 - p_t)^gamma for each class
+        focal_weight = (1 - probs) ** self.gamma
+
+        # Weighted cross-entropy
+        loss = -(focal_weight * targets * log_probs).sum(dim=1).mean()
+        return loss
 
 
 def train(config):
@@ -37,33 +74,56 @@ def train(config):
     logger.info(f"Val: {len(loaders['val'].dataset)} samples")
     logger.info(f"Test: {len(loaders['test'].dataset)} samples")
 
-    # Model
+    # Model — use .get() for backward compatibility with old configs
+    model_cfg = config["model"]
     model = ActivityLSTM(
-        input_dim=config["model"]["feature_dim"],
-        hidden_dim=config["model"]["lstm_hidden"],
-        num_layers=config["model"]["lstm_layers"],
+        input_dim=model_cfg["feature_dim"],
+        hidden_dim=model_cfg["lstm_hidden"],
+        num_layers=model_cfg["lstm_layers"],
         num_classes=num_classes,
-        lstm_dropout=config["model"]["lstm_dropout"],
-        fc_dropout=config["model"]["fc_dropout"],
+        lstm_dropout=model_cfg["lstm_dropout"],
+        fc_dropout=model_cfg["fc_dropout"],
+        use_layernorm=model_cfg.get("use_layernorm", False),
+        bidirectional=model_cfg.get("bidirectional", False),
+        pooling=model_cfg.get("pooling", "last"),
+        noise_std=config["training"].get("noise_std", 0.0),
     ).to(device)
 
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
+    logger.info(f"BiLSTM: {model_cfg.get('bidirectional', False)}, "
+                f"Pooling: {model_cfg.get('pooling', 'last')}, "
+                f"LayerNorm: {model_cfg.get('use_layernorm', False)}")
 
-    # Loss with label smoothing
-    criterion = nn.CrossEntropyLoss(label_smoothing=config["training"]["label_smoothing"])
+    # Loss selection
+    train_cfg = config["training"]
+    loss_type = train_cfg.get("loss_type", "ce")
+    if loss_type == "focal":
+        criterion = FocalLoss(
+            gamma=train_cfg.get("focal_gamma", 2.0),
+            label_smoothing=train_cfg["label_smoothing"],
+        )
+        logger.info(f"Using Focal Loss (gamma={train_cfg.get('focal_gamma', 2.0)})")
+    else:
+        criterion = nn.CrossEntropyLoss(label_smoothing=train_cfg["label_smoothing"])
+        logger.info("Using CrossEntropyLoss")
+
+    # Mixup config
+    mixup_alpha = train_cfg.get("mixup_alpha", 0.0)
+    if mixup_alpha > 0:
+        logger.info(f"Mixup enabled (alpha={mixup_alpha})")
 
     # Optimizer
     optimizer = torch.optim.Adam(
         model.parameters(),
-        lr=config["training"]["lr"],
-        weight_decay=config["training"]["weight_decay"],
+        lr=train_cfg["lr"],
+        weight_decay=train_cfg["weight_decay"],
     )
 
     # Scheduler
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min",
-        factor=config["training"]["scheduler_factor"],
-        patience=config["training"]["scheduler_patience"],
+        factor=train_cfg["scheduler_factor"],
+        patience=train_cfg["scheduler_patience"],
     )
 
     # TensorBoard
@@ -77,8 +137,8 @@ def train(config):
     # Training loop
     best_val_loss = float("inf")
     patience_counter = 0
-    epochs = config["training"]["epochs"]
-    grad_clip = config["training"]["gradient_clip"]
+    epochs = train_cfg["epochs"]
+    grad_clip = train_cfg["gradient_clip"]
 
     for epoch in range(1, epochs + 1):
         start_time = time.time()
@@ -94,9 +154,18 @@ def train(config):
             features = features.to(device)
             labels = labels.to(device)
 
+            # Apply mixup if enabled
+            if mixup_alpha > 0:
+                features, soft_targets = mixup_batch(features, labels, mixup_alpha, num_classes)
+
             optimizer.zero_grad()
             logits = model(features)
-            loss = criterion(logits, labels)
+
+            if mixup_alpha > 0:
+                loss = criterion(logits, soft_targets)
+            else:
+                loss = criterion(logits, labels)
+
             loss.backward()
 
             # Gradient clipping
@@ -167,7 +236,7 @@ def train(config):
             logger.info(f"  -> Saved best model (val_loss={val_loss:.4f})")
         else:
             patience_counter += 1
-            if patience_counter >= config["training"]["early_stop_patience"]:
+            if patience_counter >= train_cfg["early_stop_patience"]:
                 logger.info(f"Early stopping at epoch {epoch}")
                 break
 

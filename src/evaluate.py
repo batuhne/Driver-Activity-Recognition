@@ -152,6 +152,70 @@ def plot_per_class_metrics(per_class_acc, idx_to_label, save_path=None):
     return fig
 
 
+def plot_attention_weights(model, dataloader, device, idx_to_label, save_path=None,
+                           num_samples=8):
+    """Visualize attention weights over timesteps for sample predictions.
+
+    Args:
+        model: trained ActivityLSTM with attention pooling
+        dataloader: DataLoader to sample from
+        device: torch device
+        idx_to_label: dict mapping index -> activity name
+        save_path: optional path to save figure
+        num_samples: number of samples to visualize
+    """
+    model.eval()
+    samples_collected = 0
+    all_attn = []
+    all_labels = []
+    all_preds = []
+
+    with torch.no_grad():
+        for features, labels in dataloader:
+            features = features.to(device)
+            result = model(features, return_attention=True)
+
+            if not isinstance(result, tuple):
+                print("Model does not support return_attention (pooling != 'attention')")
+                return None
+
+            logits, attn_weights = result
+            preds = logits.argmax(dim=1)
+
+            for i in range(features.size(0)):
+                if samples_collected >= num_samples:
+                    break
+                all_attn.append(attn_weights[i].cpu().numpy())
+                all_labels.append(labels[i].item())
+                all_preds.append(preds[i].item())
+                samples_collected += 1
+
+            if samples_collected >= num_samples:
+                break
+
+    # Plot
+    fig, axes = plt.subplots(num_samples, 1, figsize=(10, 2 * num_samples))
+    if num_samples == 1:
+        axes = [axes]
+
+    for i, ax in enumerate(axes):
+        ax.bar(range(len(all_attn[i])), all_attn[i], color="steelblue")
+        true_name = idx_to_label.get(all_labels[i], str(all_labels[i]))
+        pred_name = idx_to_label.get(all_preds[i], str(all_preds[i]))
+        correct = "OK" if all_labels[i] == all_preds[i] else "WRONG"
+        ax.set_title(f"True: {true_name} | Pred: {pred_name} [{correct}]", fontsize=9)
+        ax.set_xlabel("Timestep")
+        ax.set_ylabel("Attention")
+        ax.set_ylim(0, max(all_attn[i]) * 1.3)
+
+    plt.tight_layout()
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return fig
+
+
 def evaluate_model(model, test_loader, device, idx_to_label, config, logger=None):
     """Full evaluation pipeline: predictions -> metrics -> plots -> save.
 

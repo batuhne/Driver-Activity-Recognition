@@ -11,7 +11,44 @@ import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import torchvision.transforms as T
 
+import torch.nn.functional as F
+
 from src.utils import get_activity_labels, build_file_id_to_video_path, compute_class_weights_from_labels
+
+
+def mixup_batch(features, labels, alpha, num_classes):
+    """Apply mixup augmentation to a batch of features.
+
+    Generates mixed samples by interpolating between random pairs.
+
+    Args:
+        features: (batch, seq_len, feat_dim) input features
+        labels: (batch,) integer class labels
+        alpha: Beta distribution parameter (0 = disabled)
+        num_classes: number of classes for one-hot encoding
+
+    Returns:
+        x_mix: (batch, seq_len, feat_dim) mixed features
+        y_mix: (batch, num_classes) soft target labels
+    """
+    batch_size = features.size(0)
+
+    # Sample lambda from Beta distribution
+    lam = np.random.beta(alpha, alpha)
+    lam = max(lam, 1 - lam)  # Ensure lam >= 0.5
+
+    # Random permutation for pairing
+    perm = torch.randperm(batch_size, device=features.device)
+
+    # Mix features
+    x_mix = lam * features + (1 - lam) * features[perm]
+
+    # Create soft targets
+    y_a = F.one_hot(labels, num_classes).float()
+    y_b = F.one_hot(labels[perm], num_classes).float()
+    y_mix = lam * y_a + (1 - lam) * y_b
+
+    return x_mix, y_mix
 
 
 def parse_annotations(config):

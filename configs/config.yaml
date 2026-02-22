@@ -15,18 +15,25 @@ model:
   feature_dim: 512                  # ResNet-18 output dimension
   lstm_hidden: 256
   lstm_layers: 2
-  lstm_dropout: 0.3
+  lstm_dropout: 0.5                  # Increased from 0.3 for regularization
   fc_dropout: 0.5
   num_classes: 34                   # Will be overridden by actual data count
   freeze_cnn: true
+  use_layernorm: true               # LayerNorm on LSTM input
+  bidirectional: true               # Bidirectional LSTM
+  pooling: "attention"              # "last" | "mean" | "attention"
 
 training:
   batch_size: 32
   lr: 0.001
-  weight_decay: 0.0001
-  epochs: 50
-  early_stop_patience: 10
+  weight_decay: 0.0005              # Increased from 1e-4 for regularization
+  epochs: 80                        # Increased from 50
+  early_stop_patience: 15           # Increased from 10
   label_smoothing: 0.1
+  loss_type: "focal"                # "ce" | "focal"
+  focal_gamma: 2.0                  # Focal loss focusing parameter
+  mixup_alpha: 0.2                  # Mixup interpolation strength (0 = disabled)
+  noise_std: 0.1                    # Gaussian noise on input features
   gradient_clip: 1.0
   scheduler_factor: 0.5
   scheduler_patience: 5
