@@ -6,7 +6,6 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 results/
-!results/*.md
 *.egg-info/
 dist/
 build/
