@@ -88,9 +88,14 @@ def train(config):
     if not use_sampler and train_labels is not None:
         beta = train_cfg.get("en_beta", 0.999)
         class_weights = compute_effective_number_weights(train_labels, num_classes, beta=beta).to(device)
-        logger.info(f"Class-weighted loss: EN beta={beta}, "
+        raw_ratio = class_weights.max() / class_weights.min()
+        # Sqrt dampening: reduces extreme ratios (e.g. 834x → ~29x)
+        # Preserves relative ordering but prevents common classes from being ignored
+        class_weights = torch.sqrt(class_weights)
+        class_weights = class_weights / class_weights.mean()  # Re-normalize to mean=1
+        logger.info(f"Class-weighted loss: EN beta={beta}, sqrt dampened, "
                     f"weight range=[{class_weights.min():.4f}, {class_weights.max():.4f}], "
-                    f"ratio={class_weights.max()/class_weights.min():.1f}x")
+                    f"ratio={class_weights.max()/class_weights.min():.1f}x (raw: {raw_ratio:.1f}x)")
     elif use_sampler:
         logger.info("Using WeightedRandomSampler for class balancing")
 
