@@ -126,11 +126,24 @@ def train(config):
     )
 
     # Scheduler
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min",
-        factor=train_cfg["scheduler_factor"],
-        patience=train_cfg["scheduler_patience"],
-    )
+    scheduler_type = train_cfg.get("scheduler_type", "plateau")
+    if scheduler_type == "cosine_warm":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer,
+            T_0=train_cfg.get("cosine_T0", 10),
+            T_mult=train_cfg.get("cosine_T_mult", 2),
+            eta_min=train_cfg.get("cosine_eta_min", 1e-6),
+        )
+        logger.info(f"Scheduler: CosineAnnealingWarmRestarts "
+                    f"(T_0={train_cfg.get('cosine_T0', 10)}, "
+                    f"T_mult={train_cfg.get('cosine_T_mult', 2)})")
+    else:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min",
+            factor=train_cfg["scheduler_factor"],
+            patience=train_cfg["scheduler_patience"],
+        )
+        logger.info("Scheduler: ReduceLROnPlateau")
 
     # TensorBoard
     writer = SummaryWriter(log_dir=config["output"]["log_dir"])
@@ -227,7 +240,10 @@ def train(config):
         writer.add_scalar("LR", optimizer.param_groups[0]["lr"], epoch)
 
         # Scheduler step
-        scheduler.step(val_loss)
+        if scheduler_type == "cosine_warm":
+            scheduler.step()
+        else:
+            scheduler.step(val_loss)
 
         # Early stopping & checkpointing
         if val_loss < best_val_loss:

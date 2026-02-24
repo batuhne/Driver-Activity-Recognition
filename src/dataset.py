@@ -13,7 +13,7 @@ import torchvision.transforms as T
 
 import torch.nn.functional as F
 
-from src.utils import get_activity_labels, build_file_id_to_video_path, compute_class_weights_from_labels
+from src.utils import get_activity_labels, build_file_id_to_video_path, compute_effective_number_weights
 
 
 def mixup_batch(features, labels, alpha, num_classes):
@@ -302,7 +302,8 @@ def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
                 # Weighted sampling for class imbalance
                 labels = [s["label"] for s in dataset.samples]
                 nc = num_classes if num_classes is not None else max(labels) + 1
-                weights = compute_class_weights_from_labels(labels, nc)
+                beta = config["training"].get("en_beta", 0.99)
+                weights = compute_effective_number_weights(labels, nc, beta=beta)
                 sample_weights = [weights[l] for l in labels]
                 sampler = WeightedRandomSampler(
                     sample_weights, len(sample_weights), replacement=True
@@ -331,7 +332,8 @@ def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
             if is_train:
                 labels = [s["label_idx"] for s in splits[split_name]]
                 nc = num_classes if num_classes is not None else max(labels) + 1
-                weights = compute_class_weights_from_labels(labels, nc)
+                beta = config["training"].get("en_beta", 0.99)
+                weights = compute_effective_number_weights(labels, nc, beta=beta)
                 sample_weights = [weights[l] for l in labels]
                 sampler = WeightedRandomSampler(
                     sample_weights, len(sample_weights), replacement=True

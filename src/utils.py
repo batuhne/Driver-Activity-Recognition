@@ -94,6 +94,34 @@ def compute_class_weights_from_labels(labels, num_classes):
     return torch.FloatTensor(weights)
 
 
+def compute_effective_number_weights(labels, num_classes, beta=0.99):
+    """Compute class weights using Effective Number of Samples (Cui et al., CVPR 2019).
+
+    Uses weight_i = (1 - beta) / (1 - beta^n_i) to produce smoother weights
+    than inverse-frequency, reducing extreme over-sampling of rare classes.
+
+    Args:
+        labels: array of integer class labels
+        num_classes: total number of classes
+        beta: smoothing parameter (0.99 typical). Higher = closer to inverse-frequency.
+
+    Returns:
+        torch.FloatTensor of shape (num_classes,) with normalized weights (mean=1.0)
+    """
+    labels = np.array(labels)
+    class_counts = np.bincount(labels, minlength=num_classes).astype(np.float64)
+    weights = np.ones(num_classes, dtype=np.float32)
+
+    for i in range(num_classes):
+        if class_counts[i] > 0:
+            effective_num = 1.0 - beta ** class_counts[i]
+            weights[i] = (1.0 - beta) / effective_num
+
+    # Normalize so mean weight = 1.0
+    weights = weights / weights.mean()
+    return torch.FloatTensor(weights)
+
+
 def build_file_id_to_video_path(data_root, video_dir="kinect_ir"):
     """Map annotation file_id to actual video file path.
 
