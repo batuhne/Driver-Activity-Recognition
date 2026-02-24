@@ -13,9 +13,9 @@ data:
 model:
   backbone: "resnet18"
   feature_dim: 512                  # ResNet-18 output dimension
-  lstm_hidden: 128                    # Reduced from 256 to cut overfitting (~850K params)
+  lstm_hidden: 192                    # Balance: 128 too small, 256 overfits (~2.0M params)
   lstm_layers: 2
-  lstm_dropout: 0.3                  # Reduced from 0.5 (smaller model needs less dropout)
+  lstm_dropout: 0.4                  # Between 0.3 (Run 4) and 0.5 (Run 3)
   fc_dropout: 0.5
   num_classes: 39                   # Will be overridden by actual data count
   freeze_cnn: true
@@ -25,13 +25,14 @@ model:
 
 training:
   batch_size: 32
-  lr: 0.0005                          # Reduced from 0.001 for smaller model
-  weight_decay: 0.0005              # Increased from 1e-4 for regularization
-  scheduler_type: "cosine_warm"     # "cosine_warm" | "plateau"
-  cosine_T0: 10                     # Initial cycle length for CosineAnnealingWarmRestarts
-  cosine_T_mult: 2                  # Cycle length multiplier (cycles: 10, 20, 40)
-  cosine_eta_min: 1.0e-6            # Minimum learning rate
-  en_beta: 0.99                     # Effective Number sampling beta (Cui et al. 2019)
+  lr: 0.0005
+  weight_decay: 0.0005
+  use_weighted_sampler: false         # false = class-weighted loss, true = WeightedRandomSampler
+  scheduler_type: "plateau"           # "cosine_warm" | "plateau"
+  cosine_T0: 10                       # (only for cosine_warm)
+  cosine_T_mult: 2
+  cosine_eta_min: 1.0e-6
+  en_beta: 0.999                      # EN beta for loss weights (higher OK vs sampler)
   epochs: 80                        # Increased from 50
   early_stop_patience: 15           # Increased from 10
   label_smoothing: 0.1

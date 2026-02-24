@@ -273,7 +273,11 @@ class DriveActFeatureDataset(Dataset):
 
 
 def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
-    """Create DataLoaders with WeightedRandomSampler for class imbalance.
+    """Create DataLoaders for training, validation, and test.
+
+    Supports two class-imbalance strategies (controlled by use_weighted_sampler config):
+    - True: WeightedRandomSampler (oversamples rare classes)
+    - False: shuffle=True + returns train_labels for class-weighted loss
 
     Args:
         config: loaded config dict
@@ -282,7 +286,7 @@ def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
         num_classes: total number of classes (avoids fragile max(labels)+1)
 
     Returns:
-        dict with 'train', 'val', 'test' DataLoaders
+        dict with 'train', 'val', 'test' DataLoaders and optionally 'train_labels'
     """
     batch_size = config["training"]["batch_size"]
     num_workers = config["training"]["num_workers"]
@@ -299,19 +303,26 @@ def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
             dataset = DriveActFeatureDataset(manifest, split_feature_dir)
 
             if split_name == "train":
-                # Weighted sampling for class imbalance
                 labels = [s["label"] for s in dataset.samples]
-                nc = num_classes if num_classes is not None else max(labels) + 1
-                beta = config["training"].get("en_beta", 0.99)
-                weights = compute_effective_number_weights(labels, nc, beta=beta)
-                sample_weights = [weights[l] for l in labels]
-                sampler = WeightedRandomSampler(
-                    sample_weights, len(sample_weights), replacement=True
-                )
-                loaders[split_name] = DataLoader(
-                    dataset, batch_size=batch_size, sampler=sampler,
-                    num_workers=num_workers, pin_memory=True,
-                )
+                use_sampler = config["training"].get("use_weighted_sampler", True)
+                if use_sampler:
+                    nc = num_classes if num_classes is not None else max(labels) + 1
+                    beta = config["training"].get("en_beta", 0.99)
+                    weights = compute_effective_number_weights(labels, nc, beta=beta)
+                    sample_weights = [weights[l] for l in labels]
+                    sampler = WeightedRandomSampler(
+                        sample_weights, len(sample_weights), replacement=True
+                    )
+                    loaders[split_name] = DataLoader(
+                        dataset, batch_size=batch_size, sampler=sampler,
+                        num_workers=num_workers, pin_memory=True,
+                    )
+                else:
+                    loaders[split_name] = DataLoader(
+                        dataset, batch_size=batch_size, shuffle=True,
+                        num_workers=num_workers, pin_memory=True,
+                    )
+                loaders["train_labels"] = labels
             else:
                 loaders[split_name] = DataLoader(
                     dataset, batch_size=batch_size, shuffle=False,
@@ -331,17 +342,25 @@ def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
 
             if is_train:
                 labels = [s["label_idx"] for s in splits[split_name]]
-                nc = num_classes if num_classes is not None else max(labels) + 1
-                beta = config["training"].get("en_beta", 0.99)
-                weights = compute_effective_number_weights(labels, nc, beta=beta)
-                sample_weights = [weights[l] for l in labels]
-                sampler = WeightedRandomSampler(
-                    sample_weights, len(sample_weights), replacement=True
-                )
-                loaders[split_name] = DataLoader(
-                    dataset, batch_size=batch_size, sampler=sampler,
-                    num_workers=num_workers, pin_memory=True,
-                )
+                use_sampler = config["training"].get("use_weighted_sampler", True)
+                if use_sampler:
+                    nc = num_classes if num_classes is not None else max(labels) + 1
+                    beta = config["training"].get("en_beta", 0.99)
+                    weights = compute_effective_number_weights(labels, nc, beta=beta)
+                    sample_weights = [weights[l] for l in labels]
+                    sampler = WeightedRandomSampler(
+                        sample_weights, len(sample_weights), replacement=True
+                    )
+                    loaders[split_name] = DataLoader(
+                        dataset, batch_size=batch_size, sampler=sampler,
+                        num_workers=num_workers, pin_memory=True,
+                    )
+                else:
+                    loaders[split_name] = DataLoader(
+                        dataset, batch_size=batch_size, shuffle=True,
+                        num_workers=num_workers, pin_memory=True,
+                    )
+                loaders["train_labels"] = labels
             else:
                 loaders[split_name] = DataLoader(
                     dataset, batch_size=batch_size, shuffle=False,

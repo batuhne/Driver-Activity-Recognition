@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from src.utils import load_config, set_seed, setup_logging
+from src.utils import load_config, set_seed, setup_logging, compute_effective_number_weights
 from src.dataset import parse_annotations, get_dataloaders, DriveActFeatureDataset, mixup_batch
 from src.models import ActivityLSTM
 from src.evaluate import evaluate_model, compute_all_metrics
@@ -80,6 +80,20 @@ def train(config):
     logger.info(f"Val: {len(loaders['val'].dataset)} samples")
     logger.info(f"Test: {len(loaders['test'].dataset)} samples")
 
+    # Class weights for loss (when not using weighted sampler)
+    train_labels = loaders.pop("train_labels", None)
+    train_cfg = config["training"]
+    use_sampler = train_cfg.get("use_weighted_sampler", True)
+    class_weights = None
+    if not use_sampler and train_labels is not None:
+        beta = train_cfg.get("en_beta", 0.999)
+        class_weights = compute_effective_number_weights(train_labels, num_classes, beta=beta).to(device)
+        logger.info(f"Class-weighted loss: EN beta={beta}, "
+                    f"weight range=[{class_weights.min():.4f}, {class_weights.max():.4f}], "
+                    f"ratio={class_weights.max()/class_weights.min():.1f}x")
+    elif use_sampler:
+        logger.info("Using WeightedRandomSampler for class balancing")
+
     # Model — use .get() for backward compatibility with old configs
     model_cfg = config["model"]
     model = ActivityLSTM(
@@ -101,7 +115,6 @@ def train(config):
                 f"LayerNorm: {model_cfg.get('use_layernorm', False)}")
 
     # Loss selection
-    train_cfg = config["training"]
     loss_type = train_cfg.get("loss_type", "ce")
     if loss_type == "focal":
         criterion = FocalLoss(
@@ -110,8 +123,11 @@ def train(config):
         )
         logger.info(f"Using Focal Loss (gamma={train_cfg.get('focal_gamma', 2.0)})")
     else:
-        criterion = nn.CrossEntropyLoss(label_smoothing=train_cfg["label_smoothing"])
-        logger.info("Using CrossEntropyLoss")
+        criterion = nn.CrossEntropyLoss(
+            weight=class_weights,
+            label_smoothing=train_cfg["label_smoothing"],
+        )
+        logger.info(f"Using CrossEntropyLoss (class_weights={'yes' if class_weights is not None else 'no'})")
 
     # Mixup config
     mixup_alpha = train_cfg.get("mixup_alpha", 0.0)
