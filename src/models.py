@@ -8,21 +8,61 @@ from torchvision.models import ResNet18_Weights
 
 
 class CNNFeatureExtractor(nn.Module):
-    """Frozen ResNet-18 for spatial feature extraction.
+    """ResNet-18 for spatial feature extraction.
 
     Removes the final FC layer and returns 512-dim feature vectors.
-    All parameters are frozen (no gradient computation).
+    Supports selective layer unfreezing for fine-tuning.
     """
 
-    def __init__(self):
+    # ResNet-18 children indices: 0=conv1, 1=bn1, 2=relu, 3=maxpool,
+    # 4=layer1, 5=layer2, 6=layer3, 7=layer4, 8=avgpool
+    LAYER_INDICES = {"layer3": 6, "layer4": 7}
+
+    def __init__(self, freeze_mode="all"):
+        """
+        Args:
+            freeze_mode: "all" (fully frozen), "layer4" (only layer4 trainable),
+                         "partial" (layer3+4 trainable), "none" (all trainable)
+        """
         super().__init__()
         resnet = models.resnet18(weights=ResNet18_Weights.DEFAULT)
         # Remove final FC layer, keep everything up to avgpool
         self.features = nn.Sequential(*list(resnet.children())[:-1])
 
-        # Freeze all parameters
+        # Apply freeze strategy
+        self._apply_freeze(freeze_mode)
+
+    def _apply_freeze(self, freeze_mode):
+        """Freeze/unfreeze parameters based on mode."""
+        if freeze_mode == "none":
+            for param in self.features.parameters():
+                param.requires_grad = True
+            return
+
+        # Freeze everything first
         for param in self.features.parameters():
             param.requires_grad = False
+
+        if freeze_mode == "all":
+            return
+
+        # Unfreeze selected layers
+        if freeze_mode == "layer4":
+            trainable_indices = {self.LAYER_INDICES["layer4"]}
+        elif freeze_mode == "partial":
+            trainable_indices = {self.LAYER_INDICES["layer3"],
+                                 self.LAYER_INDICES["layer4"]}
+        else:
+            raise ValueError(f"Unknown freeze_mode: {freeze_mode}")
+
+        for idx, child in enumerate(self.features.children()):
+            if idx in trainable_indices:
+                for param in child.parameters():
+                    param.requires_grad = True
+
+    def unfreeze(self, freeze_mode):
+        """Re-apply freeze mode (used after CNN warmup)."""
+        self._apply_freeze(freeze_mode)
 
     def forward(self, x):
         """
@@ -32,9 +72,8 @@ class CNNFeatureExtractor(nn.Module):
         Returns:
             (batch, 512) feature vectors
         """
-        with torch.no_grad():
-            features = self.features(x)
-            features = features.squeeze(-1).squeeze(-1)  # (batch, 512)
+        features = self.features(x)
+        features = features.squeeze(-1).squeeze(-1)  # (batch, 512)
         return features
 
 
@@ -146,17 +185,18 @@ class ActivityLSTM(nn.Module):
 
 
 class CNNLSTMModel(nn.Module):
-    """End-to-end CNN+LSTM model for inference/demo.
+    """End-to-end CNN+LSTM model for training and inference.
 
-    Combines frozen ResNet-18 feature extraction with LSTM classifier.
+    Combines ResNet-18 feature extraction with LSTM classifier.
+    Supports selective CNN fine-tuning via freeze_mode.
     """
 
     def __init__(self, num_classes=34, hidden_dim=256, num_layers=2,
                  lstm_dropout=0.3, fc_dropout=0.5,
                  use_layernorm=False, bidirectional=False,
-                 pooling="last", noise_std=0.0):
+                 pooling="last", noise_std=0.0, freeze_mode="all"):
         super().__init__()
-        self.cnn = CNNFeatureExtractor()
+        self.cnn = CNNFeatureExtractor(freeze_mode=freeze_mode)
         self.lstm = ActivityLSTM(
             input_dim=512,
             hidden_dim=hidden_dim,

@@ -13,37 +13,40 @@ data:
 model:
   backbone: "resnet18"
   feature_dim: 512                  # ResNet-18 output dimension
-  lstm_hidden: 192                    # Balance: 128 too small, 256 overfits (~2.0M params)
+  lstm_hidden: 256                  # Run 3 value (best MPCA)
   lstm_layers: 2
-  lstm_dropout: 0.4                  # Between 0.3 (Run 4) and 0.5 (Run 3)
+  lstm_dropout: 0.3                 # Run 3 value
   fc_dropout: 0.5
   num_classes: 39                   # Will be overridden by actual data count
-  freeze_cnn: true
+  freeze_mode: "layer4"             # "all" | "layer4" | "partial" | "none"
+  freeze_cnn: true                  # Legacy flag (freeze_mode takes precedence in end_to_end)
   use_layernorm: true               # LayerNorm on LSTM input
   bidirectional: true               # Bidirectional LSTM
   pooling: "attention"              # "last" | "mean" | "attention"
 
 training:
-  batch_size: 32
-  lr: 0.0005
-  weight_decay: 0.0005
-  use_weighted_sampler: false         # false = class-weighted loss, true = WeightedRandomSampler
-  scheduler_type: "plateau"           # "cosine_warm" | "plateau"
-  cosine_T0: 10                       # (only for cosine_warm)
-  cosine_T_mult: 2
-  cosine_eta_min: 1.0e-6
-  en_beta: 0.999                      # EN beta for loss weights (higher OK vs sampler)
-  epochs: 80                        # Increased from 50
-  early_stop_patience: 15           # Increased from 10
+  mode: "end_to_end"                # "feature_based" | "end_to_end"
+  batch_size: 8                     # Reduced for GPU memory (end-to-end)
+  accumulation_steps: 4             # Effective batch = 8 * 4 = 32
+  lr: 0.001                         # LSTM learning rate (Run 3)
+  cnn_lr: 0.00001                   # CNN fine-tuning LR (100x smaller than LSTM)
+  cnn_warmup_epochs: 3              # Freeze CNN for first N epochs
+  use_amp: true                     # Mixed precision training
+  weight_decay: 0.0001              # Run 3 value
+  use_weighted_sampler: true        # WeightedRandomSampler (Run 3)
+  en_beta: 0.99                     # EN beta for sampler weights (Run 3)
+  epochs: 50
+  early_stop_patience: 12
   label_smoothing: 0.1
   loss_type: "ce"                   # "ce" | "focal"
   focal_gamma: 2.0                  # Focal loss focusing parameter
-  mixup_alpha: 0.2                  # Mixup interpolation strength (0 = disabled)
-  noise_std: 0.1                    # Gaussian noise on input features
+  mixup_alpha: 0.0                  # Disabled — video frame mixup is not meaningful
+  noise_std: 0.0                    # Disabled — CNN augmentation is sufficient
   gradient_clip: 1.0
+  scheduler_type: "plateau"
   scheduler_factor: 0.5
   scheduler_patience: 5
-  num_workers: 4
+  num_workers: 2                    # Colab compatible
   seed: 42
 
 processing:
