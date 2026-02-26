@@ -17,8 +17,15 @@ from src.dataset import parse_annotations, DriveActVideoDataset
 from src.models import CNNFeatureExtractor
 
 
-def extract_features(config):
-    """Extract CNN features for all segments and save to disk."""
+def extract_features(config, cnn_checkpoint=None):
+    """Extract CNN features for all segments and save to disk.
+
+    Args:
+        config: loaded config dict
+        cnn_checkpoint: optional path to fine-tuned CNN checkpoint (.pth).
+                        If provided, loads backbone weights from checkpoint.
+                        If None, uses default ImageNet-pretrained ResNet-18.
+    """
     logger = setup_logging(config["output"]["log_dir"], "feature_extract")
     set_seed(config["training"]["seed"])
 
@@ -39,6 +46,17 @@ def extract_features(config):
 
     # Initialize CNN
     cnn = CNNFeatureExtractor().to(device)
+
+    # Load fine-tuned weights if provided
+    if cnn_checkpoint:
+        checkpoint = torch.load(cnn_checkpoint, map_location=device, weights_only=False)
+        cnn.load_state_dict(checkpoint["backbone_state_dict"])
+        logger.info(f"Loaded fine-tuned CNN from {cnn_checkpoint} "
+                    f"(epoch {checkpoint.get('epoch', '?')}, "
+                    f"val_acc={checkpoint.get('val_acc', '?')})")
+    else:
+        logger.info("Using default ImageNet-pretrained ResNet-18")
+
     cnn.eval()
 
     # Log IR normalization values being used

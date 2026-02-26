@@ -25,13 +25,13 @@ model:
   pooling: "attention"              # "last" | "mean" | "attention"
 
 training:
-  mode: "end_to_end"                # "feature_based" | "end_to_end"
-  batch_size: 8                     # Reduced for GPU memory (end-to-end)
-  accumulation_steps: 4             # Effective batch = 8 * 4 = 32
+  mode: "feature_based"             # "feature_based" | "end_to_end"
+  batch_size: 32
+  accumulation_steps: 1
   lr: 0.001                         # LSTM learning rate (Run 3)
-  cnn_lr: 0.00001                   # CNN fine-tuning LR (100x smaller than LSTM)
-  cnn_warmup_epochs: 3              # Freeze CNN for first N epochs
-  use_amp: true                     # Mixed precision training
+  cnn_lr: 0.00001                   # CNN fine-tuning LR (used in end_to_end mode)
+  cnn_warmup_epochs: 3              # Freeze CNN for first N epochs (end_to_end mode)
+  use_amp: false                    # Mixed precision (enable for end_to_end)
   weight_decay: 0.0001              # Run 3 value
   use_weighted_sampler: true        # WeightedRandomSampler (Run 3)
   en_beta: 0.99                     # EN beta for sampler weights (Run 3)
@@ -40,14 +40,26 @@ training:
   label_smoothing: 0.1
   loss_type: "ce"                   # "ce" | "focal"
   focal_gamma: 2.0                  # Focal loss focusing parameter
-  mixup_alpha: 0.0                  # Disabled — video frame mixup is not meaningful
-  noise_std: 0.0                    # Disabled — CNN augmentation is sufficient
+  mixup_alpha: 0.0                  # Mixup interpolation strength (0 = disabled)
+  noise_std: 0.0                    # Gaussian noise on input features
   gradient_clip: 1.0
   scheduler_type: "plateau"
   scheduler_factor: 0.5
   scheduler_patience: 5
   num_workers: 2                    # Colab compatible
   seed: 42
+
+cnn_finetune:
+  batch_size: 64                    # Single frames, can use larger batch
+  epochs: 15
+  early_stop_patience: 7
+  cnn_lr: 0.0001                    # CNN layer4 LR
+  fc_lr: 0.001                      # Classifier head LR
+  weight_decay: 0.0001
+  label_smoothing: 0.1
+  gradient_clip: 1.0
+  use_amp: true
+  use_weighted_sampler: true
 
 processing:
   seq_length: 16                    # Number of frames per sequence
@@ -58,7 +70,7 @@ processing:
   ir_std: 0.25                      # Placeholder — compute from data via compute_dataset_statistics()
 
 features:
-  save_dir: "features"              # Relative to data.root
+  save_dir: "features"              # Relative to data.root ("features_finetuned" for Run 6a)
   dtype: "float32"                  # float32 for better numerical precision
 
 output:
