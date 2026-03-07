@@ -18,7 +18,7 @@ model:
   lstm_dropout: 0.3                 # Run 3 value
   fc_dropout: 0.5
   num_classes: 39                   # Will be overridden by actual data count
-  freeze_mode: "partial"            # "all" | "layer4" | "partial" | "none"
+  freeze_mode: "layer4"             # "all" | "layer4" | "partial" | "none"
   freeze_cnn: true                  # Legacy flag (freeze_mode takes precedence in end_to_end)
   use_layernorm: true               # LayerNorm on LSTM input
   bidirectional: true               # Bidirectional LSTM

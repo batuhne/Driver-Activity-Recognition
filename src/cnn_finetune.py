@@ -36,9 +36,10 @@ class SingleFrameDataset(Dataset):
     Each epoch samples a different random frame from each segment.
     """
 
-    def __init__(self, segments, file_id_to_video, config, is_train=True):
+    def __init__(self, segments, file_id_to_video, config, is_train=True, frames_per_segment=1):
         self.segments = segments
         self.file_id_to_video = file_id_to_video
+        self.frames_per_segment = frames_per_segment
         self.frame_size = config["processing"]["frame_size"]
         self.sample_fps = config["processing"]["sample_fps"]
         self.original_fps = config["processing"]["original_fps"]
@@ -69,10 +70,11 @@ class SingleFrameDataset(Dataset):
             ])
 
     def __len__(self):
-        return len(self.segments)
+        return len(self.segments) * self.frames_per_segment
 
     def __getitem__(self, idx):
-        seg = self.segments[idx]
+        seg_idx = idx // self.frames_per_segment
+        seg = self.segments[seg_idx]
         video_path = self.file_id_to_video.get(seg["file_id"])
         if video_path is None:
             raise FileNotFoundError(f"Video not found for file_id: {seg['file_id']}")
@@ -111,13 +113,15 @@ class SingleFrameDataset(Dataset):
 class CNNClassifier(nn.Module):
     """ResNet-18 backbone + temporary classification head for fine-tuning."""
 
-    def __init__(self, num_classes, freeze_mode="layer4"):
+    def __init__(self, num_classes, freeze_mode="layer4", head_dropout=0.0):
         super().__init__()
         self.backbone = CNNFeatureExtractor(freeze_mode=freeze_mode)
+        self.dropout = nn.Dropout(p=head_dropout) if head_dropout > 0 else nn.Identity()
         self.fc = nn.Linear(512, num_classes)
 
     def forward(self, x):
         features = self.backbone(x)  # (batch, 512)
+        features = self.dropout(features)
         return self.fc(features)
 
 
@@ -144,9 +148,12 @@ def finetune_cnn(config):
     logger.info(f"Found {len(file_id_to_video)} video files")
 
     # Datasets
-    train_dataset = SingleFrameDataset(splits["train"], file_id_to_video, config, is_train=True)
+    frames_per_seg = ft_cfg.get("frames_per_segment", 1)
+    train_dataset = SingleFrameDataset(splits["train"], file_id_to_video, config,
+                                       is_train=True, frames_per_segment=frames_per_seg)
     val_dataset = SingleFrameDataset(splits["val"], file_id_to_video, config, is_train=False)
-    logger.info(f"Train: {len(train_dataset)} segments, Val: {len(val_dataset)} segments")
+    logger.info(f"Train: {len(splits['train'])} segments × {frames_per_seg} frames = {len(train_dataset)} samples")
+    logger.info(f"Val: {len(val_dataset)} segments")
 
     # Sampler (same EN weighting as Run 3)
     batch_size = ft_cfg.get("batch_size", 64)
@@ -157,7 +164,10 @@ def finetune_cnn(config):
         labels = [s["label_idx"] for s in splits["train"]]
         beta = config["training"].get("en_beta", 0.99)
         weights = compute_effective_number_weights(labels, num_classes, beta=beta)
-        sample_weights = [weights[l] for l in labels]
+        # Expand weights to match multi-frame dataset length
+        sample_weights = []
+        for l in labels:
+            sample_weights.extend([weights[l]] * frames_per_seg)
         sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler,
                                   num_workers=num_workers, pin_memory=True)
@@ -170,7 +180,9 @@ def finetune_cnn(config):
                             num_workers=num_workers, pin_memory=True)
 
     # Model
-    model = CNNClassifier(num_classes=num_classes, freeze_mode=freeze_mode).to(device)
+    head_dropout = ft_cfg.get("head_dropout", 0.0)
+    model = CNNClassifier(num_classes=num_classes, freeze_mode=freeze_mode,
+                          head_dropout=head_dropout).to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
