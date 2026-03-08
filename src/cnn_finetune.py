@@ -236,8 +236,23 @@ def finetune_cnn(config):
     grad_clip = ft_cfg.get("gradient_clip", 1.0)
     best_val_loss = float("inf")
     patience_counter = 0
+    start_epoch = 1
 
-    for epoch in range(1, epochs + 1):
+    # Resume from last checkpoint if available
+    resume_path = os.path.join(checkpoint_dir, "cnn_finetune_last.pth")
+    if os.path.exists(resume_path):
+        ckpt = torch.load(resume_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model_state_dict"])
+        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+        if scaler is not None and "scaler_state_dict" in ckpt:
+            scaler.load_state_dict(ckpt["scaler_state_dict"])
+        start_epoch = ckpt["epoch"] + 1
+        best_val_loss = ckpt["best_val_loss"]
+        patience_counter = ckpt["patience_counter"]
+        logger.info(f"Resumed from epoch {ckpt['epoch']} (best_val_loss={best_val_loss:.4f})")
+
+    for epoch in range(start_epoch, epochs + 1):
         start_time = time.time()
 
         # --- Train ---
@@ -337,6 +352,21 @@ def finetune_cnn(config):
             if patience_counter >= patience:
                 logger.info(f"Early stopping at epoch {epoch}")
                 break
+
+        # Save resume checkpoint every epoch
+        resume_state = {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "best_val_loss": best_val_loss,
+            "patience_counter": patience_counter,
+            "freeze_mode": freeze_mode,
+            "config": config,
+        }
+        if scaler is not None:
+            resume_state["scaler_state_dict"] = scaler.state_dict()
+        torch.save(resume_state, resume_path)
 
     writer.close()
     logger.info(f"CNN fine-tuning complete. Best backbone saved to {best_model_path}")
