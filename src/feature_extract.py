@@ -78,9 +78,25 @@ def extract_features(config, cnn_checkpoint=None):
         )
 
         manifest_rows = []
+        skipped = 0
 
         for idx in tqdm(range(len(dataset)), desc=f"Extracting {split_name}"):
             seg = segments[idx]
+            feature_filename = f"seg_{idx:06d}.npy"
+            feature_path = os.path.join(split_dir, feature_filename)
+
+            # Skip if already extracted (resume support)
+            if os.path.exists(feature_path):
+                manifest_rows.append({
+                    "filename": feature_filename,
+                    "label": seg["label_idx"],
+                    "activity": seg["activity"],
+                    "file_id": seg["file_id"],
+                    "frame_start": seg["frame_start"],
+                    "frame_end": seg["frame_end"],
+                })
+                skipped += 1
+                continue
 
             try:
                 frames_tensor, label = dataset[idx]
@@ -95,8 +111,6 @@ def extract_features(config, cnn_checkpoint=None):
                 features = cnn(frames_tensor)  # (T, 512)
 
             # Save features
-            feature_filename = f"seg_{idx:06d}.npy"
-            feature_path = os.path.join(split_dir, feature_filename)
             np.save(feature_path, features.cpu().numpy().astype(save_dtype))
 
             manifest_rows.append({
@@ -107,6 +121,9 @@ def extract_features(config, cnn_checkpoint=None):
                 "frame_start": seg["frame_start"],
                 "frame_end": seg["frame_end"],
             })
+
+        if skipped > 0:
+            logger.info(f"{split_name}: skipped {skipped} already-extracted segments")
 
         # Write manifest
         manifest_path = os.path.join(split_dir, "manifest.csv")
