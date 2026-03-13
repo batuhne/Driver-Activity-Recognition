@@ -272,6 +272,44 @@ class DriveActFeatureDataset(Dataset):
         return torch.from_numpy(features), label
 
 
+class DriveActMultimodalFeatureDataset(Dataset):
+    """Dataset for loading pre-extracted features from two modalities.
+
+    Loads aligned .npy feature files from two directories (e.g. IR + Depth)
+    and concatenates them along the feature dimension.
+    """
+
+    def __init__(self, manifest_path, feature_dir_a, feature_dir_b):
+        """
+        Args:
+            manifest_path: path to manifest CSV (from either modality — same structure)
+            feature_dir_a: directory containing .npy files for modality A (e.g. IR)
+            feature_dir_b: directory containing .npy files for modality B (e.g. Depth)
+        """
+        self.feature_dir_a = feature_dir_a
+        self.feature_dir_b = feature_dir_b
+        self.samples = []
+
+        with open(manifest_path, "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                self.samples.append({
+                    "filename": row["filename"],
+                    "label": int(row["label"]),
+                })
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        sample = self.samples[idx]
+        feat_a = np.load(os.path.join(self.feature_dir_a, sample["filename"])).astype(np.float32)
+        feat_b = np.load(os.path.join(self.feature_dir_b, sample["filename"])).astype(np.float32)
+        # (T, 512) + (T, 512) -> (T, 1024)
+        fused = np.concatenate([feat_a, feat_b], axis=1)
+        return torch.from_numpy(fused), sample["label"]
+
+
 def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
     """Create DataLoaders for training, validation, and test.
 
@@ -296,11 +334,18 @@ def get_dataloaders(config, splits=None, feature_based=True, num_classes=None):
 
     if feature_based:
         feature_dir = os.path.join(data_root, config["features"]["save_dir"])
+        fusion_save_dir = config["features"].get("fusion_dir")
+        fusion_dir = os.path.join(data_root, fusion_save_dir) if fusion_save_dir else None
 
         for split_name in ["train", "val", "test"]:
             manifest = os.path.join(feature_dir, split_name, "manifest.csv")
             split_feature_dir = os.path.join(feature_dir, split_name)
-            dataset = DriveActFeatureDataset(manifest, split_feature_dir)
+
+            if fusion_dir:
+                split_fusion_dir = os.path.join(fusion_dir, split_name)
+                dataset = DriveActMultimodalFeatureDataset(manifest, split_feature_dir, split_fusion_dir)
+            else:
+                dataset = DriveActFeatureDataset(manifest, split_feature_dir)
 
             if split_name == "train":
                 labels = [s["label"] for s in dataset.samples]
