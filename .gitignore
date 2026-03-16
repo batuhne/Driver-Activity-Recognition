@@ -13,3 +13,4 @@ build/
 wandb/
 runs/
 .claude/
+thesis/
