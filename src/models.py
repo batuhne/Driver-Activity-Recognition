@@ -96,7 +96,7 @@ class TemporalAttentionPool(nn.Module):
 
         Returns:
             context: (batch, hidden_dim)
-            attn_weights: (batch, seq_len) — only if return_attention=True
+            attn_weights: (batch, seq_len): only if return_attention=True
         """
         # (batch, seq_len, 1)
         scores = self.query(lstm_out)
@@ -155,7 +155,7 @@ class ActivityLSTM(nn.Module):
 
         Returns:
             logits: (batch, num_classes)
-            attn_weights: (batch, seq_len) — only if return_attention=True
+            attn_weights: (batch, seq_len): only if return_attention=True
         """
         # Gaussian noise augmentation during training
         if self.training and self.noise_std > 0:

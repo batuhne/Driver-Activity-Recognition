@@ -135,7 +135,7 @@ def merge_features(source_dir, output_dir, merge_k, pad_mode="repeat"):
                 out_filename = f"seg_{seg_idx:06d}.npy"
                 np.save(os.path.join(split_output, out_filename), merged)
 
-                # Manifest row — use first chunk's metadata, span full range
+                # Manifest row: use first chunk's metadata, span full range
                 output_rows.append({
                     "filename": out_filename,
                     "label": int(rows[0]["label"]),

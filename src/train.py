@@ -38,13 +38,13 @@ class FocalLoss(nn.Module):
             targets: (batch,) integer labels OR (batch, num_classes) soft targets
         """
         if targets.dim() == 2:
-            # Soft targets (e.g. from mixup) — focal weighting is not
+            # Soft targets (e.g. from mixup): focal weighting is not
             # semantically meaningful, fall back to plain soft CE
             log_probs = F.log_softmax(logits, dim=1)
             loss = -(targets * log_probs).sum(dim=1).mean()
             return loss
 
-        # Hard labels — apply focal loss with optional label smoothing
+        # Hard labels: apply focal loss with optional label smoothing
         num_classes = logits.size(1)
         one_hot = F.one_hot(targets, num_classes).float()
         if self.label_smoothing > 0:
@@ -123,7 +123,7 @@ def train(config):
 
         total_params = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        logger.info(f"CNNLSTMModel — total: {total_params:,}, trainable: {trainable_params:,}")
+        logger.info(f"CNNLSTMModel: total: {total_params:,}, trainable: {trainable_params:,}")
         logger.info(f"CNN freeze_mode: {freeze_mode}")
 
         # Log CNN layer status
@@ -174,7 +174,7 @@ def train(config):
     if mixup_alpha > 0:
         logger.info(f"Mixup enabled (alpha={mixup_alpha})")
 
-    # Optimizer — differential LR for end-to-end mode
+    # Optimizer: differential LR for end-to-end mode
     if mode == "end_to_end":
         cnn_lr = train_cfg.get("cnn_lr", 1e-5)
         lstm_lr = train_cfg["lr"]
@@ -187,7 +187,7 @@ def train(config):
             param_groups.insert(0, {"params": cnn_params, "lr": cnn_lr})
         optimizer = torch.optim.Adam(param_groups, weight_decay=train_cfg["weight_decay"])
         if cnn_params:
-            logger.info(f"Differential LR — CNN: {cnn_lr}, LSTM: {lstm_lr}")
+            logger.info(f"Differential LR: CNN: {cnn_lr}, LSTM: {lstm_lr}")
         else:
             logger.info(f"LSTM-only optimizer (CNN frozen for warmup), LR: {lstm_lr}")
     else:

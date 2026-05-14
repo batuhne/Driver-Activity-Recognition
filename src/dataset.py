@@ -32,7 +32,7 @@ def mixup_batch(features, labels, alpha, num_classes):
         y_mix: (batch, num_classes) soft target labels
     """
     if alpha <= 0:
-        # Mixup disabled — return one-hot hard targets
+        # Mixup disabled: return one-hot hard targets
         y_onehot = F.one_hot(labels, num_classes).float()
         return features, y_onehot
 
@@ -282,7 +282,7 @@ class DriveActMultimodalFeatureDataset(Dataset):
     def __init__(self, manifest_path, feature_dir_a, feature_dir_b):
         """
         Args:
-            manifest_path: path to manifest CSV (from either modality — same structure)
+            manifest_path: path to manifest CSV (from either modality: same structure)
             feature_dir_a: directory containing .npy files for modality A (e.g. IR)
             feature_dir_b: directory containing .npy files for modality B (e.g. Depth)
         """

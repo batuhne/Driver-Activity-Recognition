@@ -186,7 +186,7 @@ def finetune_cnn(config):
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info(f"CNNClassifier — total: {total_params:,}, trainable: {trainable_params:,}")
+    logger.info(f"CNNClassifier: total: {total_params:,}, trainable: {trainable_params:,}")
     logger.info(f"freeze_mode: {freeze_mode}")
 
     # Log layer status
@@ -200,7 +200,7 @@ def finetune_cnn(config):
     # Loss
     criterion = nn.CrossEntropyLoss(label_smoothing=ft_cfg.get("label_smoothing", 0.1))
 
-    # Optimizer — differential LR
+    # Optimizer: differential LR
     cnn_lr = ft_cfg.get("cnn_lr", 1e-4)
     fc_lr = ft_cfg.get("fc_lr", 1e-3)
     cnn_params = [p for n, p in model.named_parameters() if "backbone" in n and p.requires_grad]
@@ -209,7 +209,7 @@ def finetune_cnn(config):
         {"params": cnn_params, "lr": cnn_lr},
         {"params": fc_params, "lr": fc_lr},
     ], weight_decay=ft_cfg.get("weight_decay", 1e-4))
-    logger.info(f"Differential LR — CNN: {cnn_lr}, FC: {fc_lr}")
+    logger.info(f"Differential LR: CNN: {cnn_lr}, FC: {fc_lr}")
 
     # Scheduler
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
