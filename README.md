@@ -7,8 +7,6 @@ Fine-grained driver activity recognition on the **Drive&Act** dataset, combining
 > **Advisor:** Barış Çiçek.
 > **Department of Mathematics, Izmir Institute of Technology.**
 
-![Architecture](docs/architecture.png)
-
 ## Architecture
 
 The model has two stages.
@@ -57,8 +55,6 @@ Each modality captures complementary information. IR encodes texture and appeara
 │   ├── 04_results_visualization.ipynb
 │   ├── 05_run8_depth_fusion.ipynb     # Run 8: IR + Depth fusion (best run)
 │   └── 06_depth_only_ablation.ipynb   # Depth-only ablation
-├── docs/
-│   └── architecture.png         # Pipeline diagram
 └── data/                        # Not tracked in git
     ├── kinect_ir/vp{1-15}/      # 30 Kinect IR videos (512x424, 30fps)
     ├── kinect_depth/vp{1-15}/   # 30 Kinect Depth videos (Run 8)
