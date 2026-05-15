@@ -1,5 +1,6 @@
 """Evaluation and visualization for Driver Activity Recognition."""
 
+import logging
 import os
 
 import numpy as np
@@ -10,6 +11,8 @@ from sklearn.metrics import (
     confusion_matrix, classification_report,
     accuracy_score, f1_score
 )
+
+logger = logging.getLogger(__name__)
 
 
 def mean_per_class_accuracy(y_true, y_pred, num_classes):
@@ -190,7 +193,9 @@ def plot_attention_weights(model, dataloader, device, idx_to_label, save_path=No
             result = model(features, return_attention=True)
 
             if not isinstance(result, tuple):
-                print("Model does not support return_attention (pooling != 'attention')")
+                logger.warning(
+                    "Model does not support return_attention (pooling != 'attention')"
+                )
                 return None
 
             logits, attn_weights = result

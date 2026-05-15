@@ -21,6 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as T
 from tqdm import tqdm
 
+from src.dataset import KINECT_FRAME_SHAPE
 from src.utils import (
     load_config, set_seed, setup_logging,
     build_file_id_to_video_path, compute_effective_number_weights,
@@ -97,7 +98,7 @@ class SingleFrameDataset(Dataset):
         cap.release()
 
         if not ret:
-            frame = np.zeros((424, 512, 3), dtype=np.uint8)
+            frame = np.zeros(KINECT_FRAME_SHAPE, dtype=np.uint8)
         elif len(frame.shape) == 2:
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
         elif frame.shape[2] == 1:

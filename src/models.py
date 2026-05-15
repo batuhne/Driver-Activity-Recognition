@@ -115,8 +115,8 @@ class ActivityLSTM(nn.Module):
     and Gaussian noise augmentation for regularization.
     """
 
-    def __init__(self, input_dim=512, hidden_dim=256, num_layers=2,
-                 num_classes=34, lstm_dropout=0.3, fc_dropout=0.5,
+    def __init__(self, num_classes, input_dim=512, hidden_dim=256, num_layers=2,
+                 lstm_dropout=0.3, fc_dropout=0.5,
                  use_layernorm=False, bidirectional=False,
                  pooling="last", noise_std=0.0):
         super().__init__()
@@ -191,7 +191,7 @@ class CNNLSTMModel(nn.Module):
     Supports selective CNN fine-tuning via freeze_mode.
     """
 
-    def __init__(self, num_classes=34, hidden_dim=256, num_layers=2,
+    def __init__(self, num_classes, hidden_dim=256, num_layers=2,
                  lstm_dropout=0.3, fc_dropout=0.5,
                  use_layernorm=False, bidirectional=False,
                  pooling="last", noise_std=0.0, freeze_mode="all"):

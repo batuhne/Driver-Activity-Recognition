@@ -15,6 +15,10 @@ import torch.nn.functional as F
 
 from src.utils import get_activity_labels, build_file_id_to_video_path, compute_effective_number_weights
 
+# Drive&Act Kinect IR/Depth native frame resolution (height, width, channels).
+# Used as a fallback when a frame read fails before any good frame is available.
+KINECT_FRAME_SHAPE = (424, 512, 3)
+
 
 def mixup_batch(features, labels, alpha, num_classes):
     """Apply mixup augmentation to a batch of features.
@@ -210,7 +214,7 @@ class DriveActVideoDataset(Dataset):
                 if frames:
                     frames.append(frames[-1].copy())
                 else:
-                    frames.append(np.zeros((424, 512, 3), dtype=np.uint8))
+                    frames.append(np.zeros(KINECT_FRAME_SHAPE, dtype=np.uint8))
         cap.release()
 
         return frames
