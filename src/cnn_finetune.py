@@ -126,8 +126,8 @@ class CNNClassifier(nn.Module):
         return self.fc(features)
 
 
-def finetune_cnn(config):
-    """Fine-tune ResNet-18 layer4 as a per-frame classifier."""
+def finetune_cnn(config: dict) -> str:
+    """Fine-tune ResNet-18 layer4 as a per-frame classifier. Returns path to the best backbone checkpoint."""
     logger = setup_logging(config["output"]["log_dir"], "cnn_finetune")
     set_seed(config["training"]["seed"])
 

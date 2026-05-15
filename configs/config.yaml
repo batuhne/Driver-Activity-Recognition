@@ -65,8 +65,8 @@ processing:
   frame_size: 224
   original_fps: 30
   sample_fps: 5                     # Temporal subsampling rate
-  ir_mean: 0.5                      # Placeholder: compute from data via compute_dataset_statistics()
-  ir_std: 0.25                      # Placeholder: compute from data via compute_dataset_statistics()
+  ir_mean: 0.5                      # Default; overridden at runtime by compute_dataset_statistics()
+  ir_std: 0.25                      # Default; overridden at runtime by compute_dataset_statistics()
 
 features:
   save_dir: "features"              # Relative to data.root ("features_finetuned" for Run 6a)

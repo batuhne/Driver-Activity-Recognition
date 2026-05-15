@@ -96,7 +96,15 @@ def plot_confusion_matrix(y_true, y_pred, idx_to_label, save_path=None):
 
 def plot_training_curves(train_losses, val_losses, train_accs, val_accs,
                          save_path=None):
-    """Plot training vs validation loss and accuracy curves."""
+    """Plot training vs validation loss and accuracy curves side by side.
+
+    Args:
+        train_losses: per-epoch training losses.
+        val_losses: per-epoch validation losses.
+        train_accs: per-epoch training accuracies.
+        val_accs: per-epoch validation accuracies.
+        save_path: optional path to save the figure as PNG.
+    """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
     epochs = range(1, len(train_losses) + 1)

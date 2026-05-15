@@ -61,7 +61,7 @@ class FocalLoss(nn.Module):
         return loss
 
 
-def train(config):
+def train(config: dict) -> None:
     """Full training pipeline. Supports feature-based (LSTM only) and end-to-end (CNN+LSTM) modes."""
     logger = setup_logging(config["output"]["log_dir"], "train")
     set_seed(config["training"]["seed"])

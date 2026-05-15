@@ -100,8 +100,8 @@ def extract_features(config, cnn_checkpoint=None):
 
             try:
                 frames_tensor, label = dataset[idx]
-            except (FileNotFoundError, Exception) as e:
-                logger.warning(f"Skipping segment {idx}: {e}")
+            except Exception as e:
+                logger.warning(f"Skipping segment {idx}: {e}", exc_info=True)
                 continue
 
             # frames_tensor: (T, C, H, W)
