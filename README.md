@@ -155,12 +155,14 @@ Subject-based evaluation is much stricter than random splits: the model never se
 
 ### Systematic Improvement
 
-| Run | Key change | MPCA | Overall | I3D gap |
+| Run | Key change | MPCA | Overall | Gap to best I3D |
 |---|---|---|---|---|
-| Run 3 | Frozen CNN baseline | 39.20% | 44.80% | 25.78 pt |
-| Run 6a | CNN fine-tuning (`layer4`) | 47.90% | 61.60% | 17.08 pt |
-| Run 7b (k=2) | Chunk merging (6s context) | 52.47% | 66.28% | 12.51 pt |
-| **Run 8** | **IR + Depth fusion** | **56.51%** | **63.98%** | **8.47 pt** |
+| Run 3 | Frozen CNN baseline | 39.20% | 44.80% | 29.31 pt |
+| Run 6a | CNN fine-tuning (`layer4`) | 47.90% | 61.60% | 20.61 pt |
+| Run 7b (k=2) | Chunk merging (6s context) | 52.47% | 66.28% | 16.04 pt |
+| **Run 8** | **IR + Depth fusion** | **56.51%** | **63.98%** | **12.00 pt** |
+
+The "Gap to best I3D" column is the MPCA distance to the strongest published Drive&Act result (I3D on Kinect IR+Depth+Color, 68.51% MPCA).
 
 The overall MPCA gain is **+17.31 pt** over the baseline, decomposed cleanly across three independent improvement axes:
 
@@ -183,7 +185,7 @@ We optimize mean per-class accuracy (MPCA) as the primary metric because the dat
 | P3D (Qiu et al., 2017) | 3D CNN (pseudo) | NIR front-top | 45.32% |
 | C3D (Tran et al., 2015) | 3D CNN | NIR front-top | 43.41% |
 
-Our pipeline surpasses every body-pose baseline as well as the C3D and P3D 3D-CNN baselines, while staying lightweight: roughly 4.2M parameters versus I3D's ~12M. The remaining 8.47 pt gap to I3D is the gap to the only method that matches our modality (Kinect IR/Depth).
+Our pipeline surpasses every body-pose baseline as well as the C3D and P3D 3D-CNN baselines, while staying lightweight: roughly 4.2M parameters versus I3D's ~12M. Against the strongest published I3D configuration (Kinect IR+Depth+Color, 68.51% MPCA), the remaining gap is 12.00 pt despite using one fewer modality and roughly a third of the parameters.
 
 > Caveats: C3D and P3D use the NIR front-top sensor rather than Kinect; only the I3D rows match our modality. Published Drive&Act numbers average three subject splits, whereas our results use split 0 only.
 
