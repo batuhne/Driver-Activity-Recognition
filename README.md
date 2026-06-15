@@ -7,6 +7,10 @@ Fine-grained driver activity recognition on the **Drive&Act** dataset, combining
 > **Advisor:** Barış Çiçek.
 > **Department of Mathematics, Izmir Institute of Technology.**
 
+## Presentation
+
+Defense slides: [`presentation/slides.pdf`](presentation/slides.pdf).
+
 ## Architecture
 
 The model has two stages.
@@ -137,17 +141,17 @@ For the IR-only baseline, see `notebooks/03_lstm_training.ipynb` (Run 7b), which
 | Learning rate | 0.001 (Adam) |
 | Loss | CrossEntropyLoss with label smoothing 0.1 |
 | Class balancing | WeightedRandomSampler |
-| Augmentation | Mixup (alpha=0.2), Gaussian noise (std=0.1) |
+| Augmentation | Crop, flip, color jitter (CNN stage); mixup and feature noise disabled in the best run |
 | Gradient clipping | 1.0 |
-| Early stopping | patience=15 |
+| Early stopping | patience=12 |
 
 ## Data Split
 
 Subject-based split (Split 0):
 
-- **Train:** vp1-10 (6559 segments, ~65%)
-- **Val:** vp11-12 (1405 segments, ~14%)
-- **Test:** vp13-15 (2184 segments, ~21%)
+- **Train:** vp1, 2, 3, 4, 6, 7, 8, 9, 10, 12 (6559 segments, ~65%)
+- **Val:** vp14, 15 (1405 segments, ~14%)
+- **Test:** vp5, 11, 13 (2184 segments, ~21%)
 
 Subject-based evaluation is much stricter than random splits: the model never sees test subjects during training, so a noticeable train/test gap is expected.
 
